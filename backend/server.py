@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 import uuid
+import secrets
 import requests
+import msal
+from itsdangerous import URLSafeSerializer, BadSignature
 
 from models import (
     User, RoleUpdate, Curso, CursoCreate, Professor, ProfessorCreate,
@@ -26,6 +29,19 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '').lower()
+
+# Microsoft / Azure Entra ID OAuth
+AZURE_CLIENT_ID = os.environ.get('AZURE_CLIENT_ID', '')
+AZURE_CLIENT_SECRET = os.environ.get('AZURE_CLIENT_SECRET', '')
+AZURE_TENANT_ID = os.environ.get('AZURE_TENANT_ID', 'organizations')
+AZURE_REDIRECT_URI = os.environ.get('AZURE_REDIRECT_URI', '')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', '').rstrip('/')
+APP_SECRET = os.environ.get('APP_SECRET', 'dev-secret')
+MS_AUTHORITY = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}"
+MS_SCOPES = ["User.Read"]
+MS_ENABLED = bool(AZURE_CLIENT_ID and AZURE_CLIENT_SECRET and AZURE_REDIRECT_URI)
+flow_signer = URLSafeSerializer(APP_SECRET, salt="ms-oauth-flow")
+FLOW_COOKIE = "ms_oauth_flow"
 
 app = FastAPI(title="Ponto Acadêmico FATEC")
 api_router = APIRouter(prefix="/api")
@@ -77,6 +93,95 @@ def require_roles(*roles):
 
 # roles that can write
 WRITE_ROLES = ("adm_master", "operador")
+
+
+async def _create_session(user: User) -> str:
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": user.user_id, "session_token": token,
+        "expires_at": expires.isoformat(), "created_at": now_utc(),
+    })
+    return token
+
+
+async def _upsert_user(email: str, name: str, picture: Optional[str] = None) -> User:
+    email = email.lower()
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user = User(**existing)
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"name": name or user.name}})
+        return user
+    role = "adm_master" if email == ADMIN_EMAIL else "coordenador"
+    user = User(user_id=f"user_{uuid.uuid4().hex[:12]}", email=email, name=name or email,
+                picture=picture, role=role)
+    await db.users.insert_one(user.model_dump())
+    return user
+
+
+def _msal_app():
+    return msal.ConfidentialClientApplication(
+        AZURE_CLIENT_ID, authority=MS_AUTHORITY, client_credential=AZURE_CLIENT_SECRET)
+
+
+@api_router.get("/auth/config")
+async def auth_config():
+    return {"microsoft_enabled": MS_ENABLED, "google_enabled": True}
+
+
+@api_router.get("/auth/microsoft/login")
+async def ms_login():
+    if not MS_ENABLED:
+        raise HTTPException(status_code=503, detail="Login Microsoft não configurado")
+    flow = _msal_app().initiate_auth_code_flow(scopes=MS_SCOPES, redirect_uri=AZURE_REDIRECT_URI)
+    if "error" in flow:
+        raise HTTPException(status_code=500, detail="Falha ao iniciar login Microsoft")
+    payload = {"flow": flow, "exp": int(datetime.now(timezone.utc).timestamp()) + 600}
+    redirect = RedirectResponse(flow["auth_uri"], status_code=302)
+    redirect.set_cookie(FLOW_COOKIE, flow_signer.dumps(payload), max_age=600,
+                        httponly=True, secure=True, samesite="lax", path="/api/auth/microsoft")
+    return redirect
+
+
+@api_router.get("/auth/microsoft/callback")
+async def ms_callback(request: Request):
+    def fail(code):
+        return RedirectResponse(f"{FRONTEND_URL}/?error={code}", status_code=302)
+
+    cookie = request.cookies.get(FLOW_COOKIE)
+    if not cookie:
+        return fail("ms_flow")
+    try:
+        saved = flow_signer.loads(cookie)
+        if saved["exp"] < int(datetime.now(timezone.utc).timestamp()):
+            raise BadSignature("expired")
+    except BadSignature:
+        return fail("ms_flow")
+
+    if request.query_params.get("error"):
+        return fail("ms_denied")
+    try:
+        result = _msal_app().acquire_token_by_auth_code_flow(saved["flow"], dict(request.query_params))
+    except ValueError:
+        return fail("ms_oauth")
+    if "error" in result or "id_token_claims" not in result:
+        return fail("ms_token")
+
+    claims = result["id_token_claims"]
+    email = (claims.get("email") or claims.get("preferred_username") or "").strip().lower()
+    name = (claims.get("name") or "").strip()
+    if not email:
+        return fail("ms_email")
+
+    user = await _upsert_user(email, name)
+    if not user.active:
+        return fail("inactive")
+    token = await _create_session(user)
+    redirect = RedirectResponse(f"{FRONTEND_URL}/dashboard", status_code=302)
+    redirect.delete_cookie(FLOW_COOKIE, path="/api/auth/microsoft")
+    redirect.set_cookie("session_token", token, max_age=7 * 24 * 3600,
+                        httponly=True, secure=True, samesite="none", path="/")
+    return redirect
 
 
 # ---------------- Auth routes ----------------
