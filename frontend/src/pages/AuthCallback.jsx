@@ -27,8 +27,9 @@ export default function AuthCallback() {
         setUser(res.data.user);
         window.history.replaceState(null, "", "/dashboard");
         navigate("/dashboard", { state: { user: res.data.user } });
-      } catch {
-        navigate("/");
+      } catch (err) {
+        const code = err.response?.status === 403 ? "domain" : "auth";
+        navigate(`/?error=${code}`);
       }
     };
     process();

@@ -43,6 +43,21 @@ MS_ENABLED = bool(AZURE_CLIENT_ID and AZURE_CLIENT_SECRET and AZURE_REDIRECT_URI
 flow_signer = URLSafeSerializer(APP_SECRET, salt="ms-oauth-flow")
 FLOW_COOKIE = "ms_oauth_flow"
 
+# Institutional email domain allowlist (empty = allow any). Admin email is always allowed.
+ALLOWED_EMAIL_DOMAINS = [d.strip().lower() for d in os.environ.get('ALLOWED_EMAIL_DOMAINS', '').split(',') if d.strip()]
+_DOMAIN_MSG = ("Acesso permitido apenas para contas institucionais"
+               + (f" ({', '.join('@' + d for d in ALLOWED_EMAIL_DOMAINS)})." if ALLOWED_EMAIL_DOMAINS else "."))
+
+
+def _email_allowed(email: str) -> bool:
+    email = (email or '').lower()
+    if email == ADMIN_EMAIL:
+        return True
+    if not ALLOWED_EMAIL_DOMAINS:
+        return True
+    domain = email.split('@')[-1]
+    return any(domain == d or domain.endswith('.' + d) for d in ALLOWED_EMAIL_DOMAINS)
+
 app = FastAPI(title="Ponto Acadêmico FATEC")
 api_router = APIRouter(prefix="/api")
 
@@ -173,6 +188,9 @@ async def ms_callback(request: Request):
     if not email:
         return fail("ms_email")
 
+    if not _email_allowed(email):
+        return fail("domain")
+
     user = await _upsert_user(email, name)
     if not user.active:
         return fail("inactive")
@@ -197,6 +215,9 @@ async def create_session(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Falha ao validar sessão")
     data = resp.json()
     email = data["email"].lower()
+
+    if not _email_allowed(email):
+        raise HTTPException(status_code=403, detail=_DOMAIN_MSG)
 
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:

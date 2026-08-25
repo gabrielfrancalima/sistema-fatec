@@ -9,6 +9,8 @@ const LOGIN_BG =
   "https://images.pexels.com/photos/17082393/pexels-photo-17082393.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
 
 const ERROR_MESSAGES = {
+  domain: "Acesso permitido apenas para contas institucionais da FATEC. Use seu e-mail @fatec.sp.gov.br ou @cps.sp.gov.br.",
+  auth: "Falha ao entrar. Tente novamente.",
   ms_flow: "Sessão de login Microsoft expirada. Tente novamente.",
   ms_denied: "Login Microsoft cancelado.",
   ms_oauth: "Falha na autenticação Microsoft.",
