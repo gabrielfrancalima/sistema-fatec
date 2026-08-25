@@ -1,0 +1,34 @@
+{
+  "summary": "First iteration end-to-end testing of Ponto Acadêmico FATEC. Backend: 28/28 pytest tests passed covering auth, RBAC (adm_master/operador/coordenador), CRUDs (cursos/professores/disciplinas/feriados/aulas-remotas), grade auto-generate + cross-course professor conflict avoidance, grade save/list, /frequencia/mapa + /frequencia/professor, PDF professor + PDF curso (200 application/pdf, %PDF magic bytes, >500 bytes), operadores management. Frontend: login page renders google button, cookie-injected admin session loads dashboard with real stats, sidebar navigates to all 9 pages, Cursos CRUD via 'Novo' dialog created a record (toast 'Registro criado'), Grade auto-generate button present, Folha de Ponto generate-pdf button present, Operadores visible for adm_master with role selects and status badges, logout button present. No blocking bugs.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "GradeHoraria / any page with dynamic <option> lists", "issues": ["React dev warning: <span> cannot be a child of <option> (hydration). Caused by an injected span wrapper inside <option> children rendered from cursos.map. Cosmetic in dev but should be avoided by ensuring option children render as plain strings (e.g. {c.nome} without wrappers)."]},
+      {"screen": "Novo dialog (all CRUD pages)", "issues": ["Radix Dialog a11y warning: 'Missing Description or aria-describedby for DialogContent'. Add DialogDescription (or aria-describedby) to shadcn Dialog usages."]},
+      {"screen": "React Router", "issues": ["Warning: 'No routes matched location /login'. /login is not a defined route; the login screen renders at /. Either add an explicit /login route (redirect to /) or update ProtectedRoute redirects to point to /."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_ponto_fatec.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(Minor) Add DialogDescription to shadcn Dialog components to remove Radix a11y warnings.",
+    "(Minor) Fix <option> children to be plain text so injected span wrappers don't produce hydration warnings.",
+    "(Minor) Define /login route or redirect to / to eliminate React Router 'No routes matched' warning."
+  ],
+  "critical_code_review_comments": [
+    "server.py auto-generate 'busy set' logic uses an $or of three $ne filters which does NOT correctly exclude only the (curso,ano,semestre) tuple: with $or, a grade matching same curso but different ano is still included in 'other', which is actually the intended behavior here, but note that regenerating an existing grade in the same period will not include its own currently-saved entries (correct). Consider adding a dedicated test that regenerates over an existing saved grade for same period to validate.",
+    "get_current_user parses expires_at from string but does not handle timezone missing consistently across historical formats — currently safe (isoformat with tz). OK.",
+    "crud_routes: PUT does not touch updated_at fields for entities; only Grade has updated_at. Non-critical.",
+    "PDF endpoints have no role restriction (any authenticated user, including coordenador, can download). Spec allows coordenador read-only consultas; PDF is technically 'geração' owned by operador+admin. Consider gating /api/pdf/* with require_roles(*WRITE_ROLES) if PDF generation should be write-only. Currently coordenador can also download PDFs — flag for product decision.",
+    "delete endpoints return {ok:true} even for non-existent ids (no 404). Non-critical but inconsistent with update 404 behavior."
+  ],
+  "updated_files": ["/app/backend/tests/test_ponto_fatec.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Bearer seed_session_admin_001 (adm_master), seed_session_op_001 (operador), seed_session_co_001 (coordenador). All expiries extended to +30d.",
+  "seed_data_creation": "Inserted 2 extra users (op_seed_01 operador, co_seed_01 coordenador) + sessions for RBAC testing. Extended admin session expires_at. Test data prefixed TEST_ was cleaned after run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend fully green (28 passed). Additional seeded users: op_seed_01/operador (token seed_session_op_001) and co_seed_01/coordenador (token seed_session_co_001) exist in test_database. Frontend uses cookie session_token; admin cookie 'seed_session_admin_001' works fine when set with domain=prof-attendance-mgmt.preview.emergentagent.com sameSite=None secure httpOnly. Only cosmetic dev-mode React warnings present (option>span hydration, missing DialogDescription, /login route not defined).",
+  "rca of the issue": "N/A — no critical bugs found."
+}

@@ -1,0 +1,88 @@
+@import '@fontsource/chivo/400.css';
+@import '@fontsource/chivo/700.css';
+@import '@fontsource/chivo/900.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    margin: 0;
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #F3F4F6;
+    color: #273336;
+}
+
+h1, h2, h3, h4, .font-display {
+    font-family: "Chivo", sans-serif;
+}
+
+code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, monospace;
+}
+
+::selection {
+    background: #FF161F;
+    color: #ffffff;
+}
+
+@layer base {
+    :root {
+        --background: 220 14% 96%;
+        --foreground: 195 16% 18%;
+        --card: 0 0% 100%;
+        --card-foreground: 195 16% 18%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 195 16% 18%;
+        --primary: 358 100% 54%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 195 16% 18%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 220 14% 93%;
+        --muted-foreground: 0 0% 45%;
+        --accent: 220 14% 93%;
+        --accent-foreground: 195 16% 18%;
+        --destructive: 358 100% 54%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 0 0% 82%;
+        --input: 0 0% 82%;
+        --ring: 358 100% 54%;
+        --radius: 0.25rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* subtle grain overlay for depth on dark panels */
+.grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+    pointer-events: none;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+    animation: fadeUp 0.4s ease-out both;
+}
+
+.nav-link-active {
+    background: #FF161F;
+    color: #fff;
+}
