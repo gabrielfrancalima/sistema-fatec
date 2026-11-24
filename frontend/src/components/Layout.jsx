@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useAuth, ROLE_LABELS } from "@/context/AuthContext";
 import {
   LayoutDashboard, Users, BookOpen, GraduationCap, CalendarOff, Wifi,
-  CalendarClock, FileText, Search, UserCog, LogOut, Menu, X,
+  CalendarClock, FileText, Search, UserCog, LogOut, Menu,
 } from "lucide-react";
 
 const NAV = [
@@ -21,7 +21,6 @@ const NAV = [
 export default function Layout({ children, title }) {
   const { user, logout, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
 
   const nav = [...NAV];
   if (isAdmin) nav.push({ to: "/operadores", label: "Operadores", icon: UserCog });
@@ -52,7 +51,7 @@ export default function Layout({ children, title }) {
                 }`
               }
             >
-              <Icon className="w-4.5 h-4.5 shrink-0" style={{ width: 18, height: 18 }} />
+              <Icon className="shrink-0" style={{ width: 18, height: 18 }} />
               {item.label}
             </NavLink>
           );

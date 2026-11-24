@@ -2,8 +2,8 @@ import { useAuth } from "@/context/AuthContext";
 import { Navigate } from "react-router-dom";
 import { GraduationCap } from "lucide-react";
 
-export default function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
+export default function ProtectedRoute({ children, adminOnly = false }) {
+  const { user, loading, isAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -15,5 +15,6 @@ export default function ProtectedRoute({ children }) {
     );
   }
   if (!user) return <Navigate to="/" replace />;
+  if (adminOnly && !isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }

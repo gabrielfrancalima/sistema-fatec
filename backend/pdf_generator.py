@@ -1,8 +1,8 @@
 from io import BytesIO
-from datetime import date, timedelta
+from datetime import date
 import calendar
 
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -18,8 +18,10 @@ FATEC_RED_LIGHT = colors.HexColor("#FF161F")
 SLATE = colors.HexColor("#273336")
 LIGHT = colors.HexColor("#F3F4F6")
 
-MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+MESES = [
+    "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
 
 
 def _styles():
@@ -37,14 +39,14 @@ def _styles():
 
 
 def _header(ss, subtitulo):
-    els = []
-    els.append(Paragraph("CENTRO ESTADUAL DE EDUCAÇÃO TECNOLÓGICA PAULA SOUZA", ss["FatecSub"]))
-    els.append(Paragraph("FATEC — Faculdade de Tecnologia", ss["FatecTitle"]))
-    els.append(Paragraph(subtitulo, ss["FatecSub"]))
-    els.append(Spacer(1, 4))
-    els.append(HRFlowable(width="100%", thickness=2, color=FATEC_RED_LIGHT))
-    els.append(Spacer(1, 8))
-    return els
+    return [
+        Paragraph("CENTRO ESTADUAL DE EDUCAÇÃO TECNOLÓGICA PAULA SOUZA", ss["FatecSub"]),
+        Paragraph("FATEC — Faculdade de Tecnologia", ss["FatecTitle"]),
+        Paragraph(subtitulo, ss["FatecSub"]),
+        Spacer(1, 4),
+        HRFlowable(width="100%", thickness=2, color=FATEC_RED_LIGHT),
+        Spacer(1, 8),
+    ]
 
 
 def _meta_table(ss, pairs):
@@ -68,7 +70,6 @@ def _meta_table(ss, pairs):
 
 
 def _dates_in_month(ano, mes, weekday):
-    """weekday: 0=Mon..4=Fri (python weekday). Return list of date objects."""
     dias = []
     _, last = calendar.monthrange(ano, mes)
     for d in range(1, last + 1):
@@ -79,11 +80,6 @@ def _dates_in_month(ano, mes, weekday):
 
 
 def gerar_folha_professor(professor, curso, entries_prof, ano, mes, feriados, aulas_remotas, disciplinas_map):
-    """
-    entries_prof: list of grade entries (dicts) for this professor within the given curso context
-    feriados: dict {YYYY-MM-DD: descricao}
-    aulas_remotas: set of YYYY-MM-DD strings for this professor/curso
-    """
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=14 * mm, bottomMargin=14 * mm,
                             leftMargin=14 * mm, rightMargin=14 * mm)
@@ -93,20 +89,19 @@ def gerar_folha_professor(professor, curso, entries_prof, ano, mes, feriados, au
     els.append(_meta_table(ss, [
         ("Docente", professor.get("nome", "")),
         ("Titulação", professor.get("titulacao", "")),
-        ("Curso", f"{curso.get('nome','')} ({curso.get('sigla','')})" if curso else "Todos"),
+        ("Curso", f"{curso.get('nome', '')} ({curso.get('sigla', '')})" if curso else "Todos"),
         ("Período", f"{MESES[mes]} / {ano}"),
         ("Turno", (curso.get("turno", "") if curso else "").capitalize()),
         ("Registro", professor.get("registro", "") or "-"),
     ]))
     els.append(Spacer(1, 8))
 
-    # Build rows: for each grade entry (day of week + time), list every occurrence in month
     header = ["Data", "Dia", "Disciplina", "Horário", "Modalidade", "Assinatura"]
     rows = [header]
 
     occurrences = []
     for e in entries_prof:
-        wd = e["dia_semana"]  # 0=Segunda -> python Monday=0, aligns
+        wd = e["dia_semana"]
         disc = disciplinas_map.get(e["disciplina_id"], {})
         for dt in _dates_in_month(ano, mes, wd):
             occurrences.append((dt, e, disc))
@@ -189,12 +184,11 @@ def _footer(canvas, doc):
 
 
 def gerar_folha_curso(curso, professores_entries, ano, mes, feriados, aulas_remotas_por_prof, disciplinas_map):
-    """One consolidated PDF: one section (table) per professor in the course."""
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=14 * mm, bottomMargin=14 * mm,
                             leftMargin=14 * mm, rightMargin=14 * mm)
     ss = _styles()
-    els = _header(ss, f"MAPA DE FREQUÊNCIA — {curso.get('nome','')} ({curso.get('sigla','')})")
+    els = _header(ss, f"MAPA DE FREQUÊNCIA — {curso.get('nome', '')} ({curso.get('sigla', '')})")
     els.append(_meta_table(ss, [
         ("Curso", curso.get("nome", "")),
         ("Período", f"{MESES[mes]} / {ano}"),
@@ -204,7 +198,7 @@ def gerar_folha_curso(curso, professores_entries, ano, mes, feriados, aulas_remo
     els.append(Spacer(1, 10))
 
     for prof, entries_prof in professores_entries:
-        band = Table([[Paragraph(f"Docente: {prof.get('nome','')}", ss["SectTitle"])]], colWidths=[182 * mm])
+        band = Table([[Paragraph(f"Docente: {prof.get('nome', '')}", ss["SectTitle"])]], colWidths=[182 * mm])
         band.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), FATEC_RED),
             ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -226,9 +220,13 @@ def gerar_folha_curso(curso, professores_entries, ano, mes, feriados, aulas_remo
             iso = dt.isoformat()
             fer = feriados.get(iso)
             mod = f"FERIADO — {fer}" if fer else ("Remota (EAD)" if iso in aulas_remotas else "Presencial")
-            rows.append([dt.strftime("%d/%m"), DIAS_SEMANA[e["dia_semana"]].replace("-feira", ""),
-                         Paragraph(disc.get("nome", "-"), ss["CellSm"]),
-                         f'{e["hora_inicio"]}–{e["hora_fim"]}', mod])
+            rows.append([
+                dt.strftime("%d/%m"),
+                DIAS_SEMANA[e["dia_semana"]].replace("-feira", ""),
+                Paragraph(disc.get("nome", "-"), ss["CellSm"]),
+                f'{e["hora_inicio"]}–{e["hora_fim"]}',
+                mod,
+            ])
         if len(rows) == 1:
             rows.append(["—", "—", "Sem aulas no período", "—", "—"])
         t = Table(rows, colWidths=[20 * mm, 22 * mm, 62 * mm, 26 * mm, 52 * mm], repeatRows=1)

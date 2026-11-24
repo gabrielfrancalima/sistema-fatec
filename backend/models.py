@@ -12,13 +12,12 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
-# ---------- Auth ----------
 class User(BaseModel):
     user_id: str
     email: str
     name: str
     picture: Optional[str] = None
-    role: str = "coordenador"  # adm_master | operador | coordenador
+    role: str = "coordenador"
     active: bool = True
     created_at: str = Field(default_factory=now_utc)
 
@@ -28,11 +27,10 @@ class RoleUpdate(BaseModel):
     active: Optional[bool] = None
 
 
-# ---------- Curso ----------
 class CursoCreate(BaseModel):
-    nome: str
-    sigla: str
-    turno: str = "noturno"  # matutino | vespertino | noturno
+    nome: str = Field(..., min_length=1)
+    sigla: str = Field(..., min_length=1)
+    turno: str = "noturno"
     coordenador_nome: Optional[str] = ""
 
 
@@ -41,9 +39,8 @@ class Curso(CursoCreate):
     created_at: str = Field(default_factory=now_utc)
 
 
-# ---------- Professor ----------
 class ProfessorCreate(BaseModel):
-    nome: str
+    nome: str = Field(..., min_length=1)
     email: Optional[str] = ""
     cpf: Optional[str] = ""
     titulacao: Optional[str] = "Especialista"
@@ -55,14 +52,13 @@ class Professor(ProfessorCreate):
     created_at: str = Field(default_factory=now_utc)
 
 
-# ---------- Disciplina ----------
 class DisciplinaCreate(BaseModel):
-    nome: str
-    codigo: str
-    curso_id: str
+    nome: str = Field(..., min_length=1)
+    codigo: str = Field(..., min_length=1)
+    curso_id: str = Field(..., min_length=1)
     professor_id: Optional[str] = None
-    aulas_por_semana: int = 2
-    carga_horaria: int = 40
+    aulas_por_semana: int = Field(default=2, ge=1, le=20)
+    carga_horaria: int = Field(default=40, ge=0)
 
 
 class Disciplina(DisciplinaCreate):
@@ -70,11 +66,10 @@ class Disciplina(DisciplinaCreate):
     created_at: str = Field(default_factory=now_utc)
 
 
-# ---------- Feriado ----------
 class FeriadoCreate(BaseModel):
-    data: str  # YYYY-MM-DD
-    descricao: str
-    tipo: str = "Nacional"  # Nacional | Estadual | Institucional
+    data: str = Field(..., min_length=10)
+    descricao: str = Field(..., min_length=1)
+    tipo: str = "Nacional"
 
 
 class Feriado(FeriadoCreate):
@@ -82,9 +77,8 @@ class Feriado(FeriadoCreate):
     created_at: str = Field(default_factory=now_utc)
 
 
-# ---------- Aula Remota ----------
 class AulaRemotaCreate(BaseModel):
-    data: str  # YYYY-MM-DD
+    data: str = Field(..., min_length=10)
     curso_id: Optional[str] = None
     disciplina_id: Optional[str] = None
     professor_id: Optional[str] = None
@@ -96,10 +90,9 @@ class AulaRemota(AulaRemotaCreate):
     created_at: str = Field(default_factory=now_utc)
 
 
-# ---------- Grade Horária ----------
 class GradeEntry(BaseModel):
-    dia_semana: int  # 0=Segunda ... 4=Sexta
-    slot_index: int
+    dia_semana: int = Field(..., ge=0, le=4)
+    slot_index: int = Field(..., ge=0)
     hora_inicio: str
     hora_fim: str
     disciplina_id: str
@@ -108,8 +101,8 @@ class GradeEntry(BaseModel):
 
 class GradeCreate(BaseModel):
     curso_id: str
-    ano: int
-    semestre: int = 1
+    ano: int = Field(..., ge=2000, le=2100)
+    semestre: int = Field(default=1, ge=1, le=2)
     turno: str = "noturno"
     entries: List[GradeEntry] = []
 
@@ -122,6 +115,6 @@ class Grade(GradeCreate):
 
 class AutoGenRequest(BaseModel):
     curso_id: str
-    ano: int
-    semestre: int = 1
+    ano: int = Field(..., ge=2000, le=2100)
+    semestre: int = Field(default=1, ge=1, le=2)
     turno: str = "noturno"

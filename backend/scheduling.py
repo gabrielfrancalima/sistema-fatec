@@ -21,28 +21,21 @@ def get_slots(turno: str):
 
 
 def auto_generate(disciplinas, professor_busy, turno):
-    """
-    disciplinas: list of dicts with id, professor_id, aulas_por_semana, nome
-    professor_busy: set of (professor_id, dia_semana, hora_inicio) already occupied in OTHER grades
-    Returns (entries, conflicts)
-    """
     slots = get_slots(turno)
     n_days = len(DIAS_SEMANA)
     n_slots = len(slots)
 
-    cell_used = set()          # (dia, slot) used in this grade
-    prof_used = set(professor_busy)  # (prof, dia, hora_inicio) globally
+    cell_used = set()
+    prof_used = set(professor_busy)
     entries = []
     conflicts = []
 
-    # order disciplines by demand descending for better packing
     ordered = sorted(disciplinas, key=lambda d: d.get("aulas_por_semana", 0), reverse=True)
 
     for disc in ordered:
         needed = int(disc.get("aulas_por_semana", 0) or 0)
         prof = disc.get("professor_id")
         placed = 0
-        # try to spread across days: iterate slot-major then day
         for slot_i in range(n_slots):
             for day in range(n_days):
                 if placed >= needed:

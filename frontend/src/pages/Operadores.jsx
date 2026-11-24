@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
-import { useAuth, ROLE_LABELS } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,

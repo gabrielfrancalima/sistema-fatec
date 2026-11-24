@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import api, { API } from "@/lib/api";
+import api from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { FileText, Download, User, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 
-const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MESES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
 const now = new Date();
 
 export default function FolhaPonto() {
@@ -21,32 +23,49 @@ export default function FolhaPonto() {
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    api.get("/professores").then((r) => setProfessores(r.data));
-    api.get("/cursos").then((r) => setCursos(r.data));
+    api.get("/professores").then((r) => setProfessores(r.data)).catch(() => {});
+    api.get("/cursos").then((r) => setCursos(r.data)).catch(() => {});
   }, []);
 
   const download = async () => {
-    let url, filename;
+    let endpoint;
+    let params = { ano: Number(ano), mes: Number(mes) };
+    let fallbackName;
+
     if (tab === "professor") {
-      if (!profId) { toast.error("Selecione um professor"); return; }
-      url = `${API}/pdf/professor/${profId}?ano=${ano}&mes=${mes}${profCursoId ? `&curso_id=${profCursoId}` : ""}`;
-      filename = "folha_ponto.pdf";
+      if (!profId) {
+        toast.error("Selecione um professor");
+        return;
+      }
+      endpoint = `/pdf/professor/${profId}`;
+      if (profCursoId) params.curso_id = profCursoId;
+      fallbackName = `folha_ponto_${String(mes).padStart(2, "0")}_${ano}.pdf`;
     } else {
-      if (!cursoId) { toast.error("Selecione um curso"); return; }
-      url = `${API}/pdf/curso/${cursoId}?ano=${ano}&mes=${mes}`;
-      filename = "mapa_frequencia.pdf";
+      if (!cursoId) {
+        toast.error("Selecione um curso");
+        return;
+      }
+      endpoint = `/pdf/curso/${cursoId}`;
+      fallbackName = `mapa_frequencia_${String(mes).padStart(2, "0")}_${ano}.pdf`;
     }
+
     setDownloading(true);
     try {
-      const res = await api.get(url.replace(API, ""), { responseType: "blob" });
+      const res = await api.get(endpoint, { params, responseType: "blob" });
+      const disposition = res.headers?.["content-disposition"] || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const filename = match ? match[1] : fallbackName;
+
       const blob = new Blob([res.data], { type: "application/pdf" });
       const link = document.createElement("a");
       link.href = window.URL.createObjectURL(blob);
       link.download = filename;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
-      toast.success("PDF gerado");
-    } catch (err) {
+      toast.success("PDF gerado com sucesso");
+    } catch {
       toast.error("Erro ao gerar PDF");
     } finally {
       setDownloading(false);
@@ -111,7 +130,7 @@ export default function FolhaPonto() {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-[#808080]">Ano</label>
-              <input data-testid="folha-ano-input" type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} className={selectCls} />
+              <input data-testid="folha-ano-input" type="number" min="2000" max="2100" value={ano} onChange={(e) => setAno(Number(e.target.value))} className={selectCls} />
             </div>
           </div>
 

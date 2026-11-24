@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
@@ -26,19 +26,23 @@ export default function CrudPage({ title, endpoint, fields, columns, testid }) {
   const [deleteId, setDeleteId] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
+  const refEndpointsKey = Array.from(
+    new Set(fields.filter((f) => f.type === "ref").map((f) => f.refEndpoint))
+  ).join(",");
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get(`/${endpoint}`);
       setItems(res.data);
-      const refFields = fields.filter((f) => f.type === "ref");
+      const refEndpoints = refEndpointsKey ? refEndpointsKey.split(",") : [];
       const refData = {};
       await Promise.all(
-        refFields.map(async (f) => {
-          if (!refData[f.refEndpoint]) {
-            const r = await api.get(`/${f.refEndpoint}`);
-            refData[f.refEndpoint] = r.data;
-          }
+        refEndpoints.map(async (ep) => {
+          const r = await api.get(`/${ep}`);
+          refData[ep] = r.data;
         })
       );
       setRefs(refData);
@@ -47,7 +51,7 @@ export default function CrudPage({ title, endpoint, fields, columns, testid }) {
     } finally {
       setLoading(false);
     }
-  }, [endpoint, fields]);
+  }, [endpoint, refEndpointsKey]);
 
   useEffect(() => {
     load();
@@ -55,7 +59,7 @@ export default function CrudPage({ title, endpoint, fields, columns, testid }) {
 
   const openCreate = () => {
     const init = {};
-    fields.forEach((f) => (init[f.name] = f.default ?? ""));
+    fieldsRef.current.forEach((f) => (init[f.name] = f.default ?? ""));
     setForm(init);
     setEditing(null);
     setDialogOpen(true);
@@ -63,7 +67,7 @@ export default function CrudPage({ title, endpoint, fields, columns, testid }) {
 
   const openEdit = (item) => {
     const init = {};
-    fields.forEach((f) => (init[f.name] = item[f.name] ?? f.default ?? ""));
+    fieldsRef.current.forEach((f) => (init[f.name] = item[f.name] ?? f.default ?? ""));
     setForm(init);
     setEditing(item);
     setDialogOpen(true);
@@ -73,7 +77,7 @@ export default function CrudPage({ title, endpoint, fields, columns, testid }) {
     e.preventDefault();
     setSaving(true);
     const payload = { ...form };
-    fields.forEach((f) => {
+    fieldsRef.current.forEach((f) => {
       if (f.type === "number") payload[f.name] = Number(payload[f.name]) || 0;
       if (f.type === "ref" && payload[f.name] === "") payload[f.name] = null;
     });
@@ -159,7 +163,7 @@ export default function CrudPage({ title, endpoint, fields, columns, testid }) {
                   ))
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={columns.length + 1} className="px-4 py-16 text-center">
+                    <td colSpan={columns.length + (canWrite ? 1 : 0)} className="px-4 py-16 text-center">
                       <Inbox className="w-10 h-10 mx-auto text-[#BFBFBF] mb-3" />
                       <p className="text-[#808080]">Nenhum registro cadastrado.</p>
                     </td>

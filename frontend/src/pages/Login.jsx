@@ -1,4 +1,4 @@
-import { GraduationCap, ShieldCheck, Clock } from "lucide-react";
+import { GraduationCap, ShieldCheck, Clock, Play } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +11,10 @@ const LOGIN_BG =
 const ERROR_MESSAGES = {
   domain: "Acesso permitido apenas para contas institucionais da FATEC. Use seu e-mail @fatec.sp.gov.br ou @cps.sp.gov.br.",
   auth: "Falha ao entrar. Tente novamente.",
+  google_flow: "Sessão de login Google expirada. Tente novamente.",
+  google_denied: "Login Google cancelado.",
+  google_oauth: "Falha na autenticação Google.",
+  google_token: "Não foi possível validar sua conta Google.",
   ms_flow: "Sessão de login Microsoft expirada. Tente novamente.",
   ms_denied: "Login Microsoft cancelado.",
   ms_oauth: "Falha na autenticação Microsoft.",
@@ -20,16 +24,23 @@ const ERROR_MESSAGES = {
 };
 
 export default function Login() {
-  const { user, loading } = useAuth();
+  const { user, setUser, loading } = useAuth();
   const navigate = useNavigate();
+  const [googleEnabled, setGoogleEnabled] = useState(false);
   const [msEnabled, setMsEnabled] = useState(false);
+  const [demoEnabled, setDemoEnabled] = useState(false);
+  const [demoLoading, setDemoLoading] = useState("");
 
   useEffect(() => {
     if (!loading && user) navigate("/dashboard");
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    api.get("/auth/config").then((r) => setMsEnabled(r.data.microsoft_enabled)).catch(() => {});
+    api.get("/auth/config").then((r) => {
+      setGoogleEnabled(Boolean(r.data.google_enabled));
+      setMsEnabled(Boolean(r.data.microsoft_enabled));
+      setDemoEnabled(Boolean(r.data.demo_login_enabled));
+    }).catch(() => {});
     const params = new URLSearchParams(window.location.search);
     const err = params.get("error");
     if (err) {
@@ -39,22 +50,39 @@ export default function Login() {
   }, []);
 
   const handleGoogle = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + "/dashboard";
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+    if (!googleEnabled) {
+      toast.error("Login Google ainda não configurado neste ambiente. Configure GOOGLE_CLIENT_ID no .env ou use o Acesso Local abaixo.");
+      return;
+    }
+    const base = process.env.REACT_APP_BACKEND_URL || "";
+    window.location.href = `${base}/api/auth/google/login`;
   };
 
   const handleMicrosoft = () => {
     if (!msEnabled) {
-      toast.error("Login Microsoft ainda não configurado. Peça ao administrador para cadastrar as credenciais do Azure.");
+      toast.error("Login Microsoft ainda não configurado. Cadastre as credenciais do Azure no .env ou use o Acesso Local abaixo.");
       return;
     }
-    window.location.href = `${process.env.REACT_APP_BACKEND_URL}/api/auth/microsoft/login`;
+    const base = process.env.REACT_APP_BACKEND_URL || "";
+    window.location.href = `${base}/api/auth/microsoft/login`;
+  };
+
+  const handleDemoLogin = async (role) => {
+    setDemoLoading(role);
+    try {
+      const res = await api.post("/auth/demo-login", { role });
+      setUser(res.data.user);
+      toast.success(`Acesso local iniciado como ${res.data.user.name}`);
+      navigate("/dashboard");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Falha no acesso local");
+    } finally {
+      setDemoLoading("");
+    }
   };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left brand panel */}
       <div className="relative hidden lg:block overflow-hidden grain">
         <img src={LOGIN_BG} alt="Arquitetura educacional" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-[#273336]/85" />
@@ -85,7 +113,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right auth panel */}
       <div className="flex items-center justify-center p-8 bg-white">
         <div className="w-full max-w-sm animate-fade-up">
           <div className="lg:hidden flex items-center gap-3 mb-10">
@@ -128,7 +155,46 @@ export default function Login() {
             Entrar com Microsoft
           </button>
 
-          <div className="mt-10 border-t border-[#BFBFBF]/40 pt-6">
+          {demoEnabled && (
+            <div className="mt-6 border border-[#BFBFBF]/60 bg-[#F3F4F6] rounded-sm p-4">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#273336] flex items-center gap-1.5">
+                <Play className="w-3.5 h-3.5 text-[#FF161F]" /> Acesso Local (Avaliação Docker)
+              </p>
+              <p className="text-xs text-[#808080] mt-1 mb-3">
+                Teste os 3 perfis RBAC imediatamente sem precisar cadastrar credenciais OAuth externas:
+              </p>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  disabled={!!demoLoading}
+                  onClick={() => handleDemoLogin("adm_master")}
+                  className="w-full py-2 px-3 bg-[#FF161F] hover:bg-[#B20000] text-white text-xs font-semibold rounded-sm transition-colors disabled:opacity-60"
+                >
+                  {demoLoading === "adm_master" ? "Entrando..." : "Entrar como ADM Master (Acesso Total)"}
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={!!demoLoading}
+                    onClick={() => handleDemoLogin("operador")}
+                    className="py-2 px-2 bg-[#273336] hover:bg-[#1a2325] text-white text-xs font-medium rounded-sm transition-colors disabled:opacity-60"
+                  >
+                    {demoLoading === "operador" ? "..." : "Operador (CRUD)"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!demoLoading}
+                    onClick={() => handleDemoLogin("coordenador")}
+                    className="py-2 px-2 bg-white hover:border-[#FF161F] border border-[#BFBFBF] text-[#273336] text-xs font-medium rounded-sm transition-colors disabled:opacity-60"
+                  >
+                    {demoLoading === "coordenador" ? "..." : "Coordenador (Leitura)"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 border-t border-[#BFBFBF]/40 pt-5">
             <p className="text-xs text-[#808080] leading-relaxed">
               Novos usuários recebem o perfil <span className="font-semibold text-[#273336]">Coordenador (consulta)</span> por padrão. Solicite ao ADM Master a alteração de perfil.
             </p>

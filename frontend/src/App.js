@@ -1,10 +1,9 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Login from "@/pages/Login";
-import AuthCallback from "@/pages/AuthCallback";
 import Dashboard from "@/pages/Dashboard";
 import Professores from "@/pages/Professores";
 import Cursos from "@/pages/Cursos";
@@ -17,10 +16,9 @@ import Consultas from "@/pages/Consultas";
 import Operadores from "@/pages/Operadores";
 
 function AppRouter() {
-  const location = useLocation();
-  if (location.hash?.includes("session_id=")) return <AuthCallback />;
-
-  const P = (el) => <ProtectedRoute>{el}</ProtectedRoute>;
+  const P = (el, adminOnly = false) => (
+    <ProtectedRoute adminOnly={adminOnly}>{el}</ProtectedRoute>
+  );
 
   return (
     <Routes>
@@ -35,7 +33,8 @@ function AppRouter() {
       <Route path="/grade" element={P(<GradeHoraria />)} />
       <Route path="/folha-ponto" element={P(<FolhaPonto />)} />
       <Route path="/consultas" element={P(<Consultas />)} />
-      <Route path="/operadores" element={P(<Operadores />)} />
+      <Route path="/operadores" element={P(<Operadores />, true)} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
